@@ -14,6 +14,8 @@ It requires PHP 5.6+ with the php5-curl module enabled.
 
 It also requires writing privileges in app/cache and app/logs.
 
+Even though it fires up process asynchronously, it does **not** need any additional modules (like pthreads).
+
 Installing
 ----------
 

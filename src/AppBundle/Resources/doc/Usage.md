@@ -10,7 +10,10 @@ The first one, the Queue Manager, should be started from the command line. It wi
 firing up the runners and checking for new processes continously.
 
 The second one, the HTTP restful api, works like a normal HTTP service. You'll need Apache or nginx,
-with a virtual host set to the `/web/` directory.
+with a virtual host with a Document Root pointing to the `/web/` directory.
+
+You should check the [Symfony documentation](http://symfony.com/doc/current/cookbook/configuration/web_server_configuration.html)
+if you have any questions on how to setup your webserver.
 
 The Queue Manager
 -----------------
@@ -42,10 +45,14 @@ Obviously, you can combine both modes:
 
     $ php app/console naroga:queue:start -d -v
     
+**Checking the service status:**
+    
 You can check the service status with the following command:
 
     $ php app/console naroga:queue:status
-    
+
+**Stopping the service:**
+
 And you can stop the Queue Manager with `naroga:queue:stop`.
 
     $ php app/console naroga:queue:stop
