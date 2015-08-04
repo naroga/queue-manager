@@ -35,4 +35,4 @@ to improve your server responsiveness or to increase the number of workers.
 Usage
 -----
 
-If you want to get started on using this package, you can proceed to the Usage Instructions.
+If you want to get started on using this package, you can proceed to the [Usage Instructions](/src/AppBundle/Resources/doc/Usage.md).

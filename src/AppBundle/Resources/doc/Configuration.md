@@ -2,7 +2,7 @@ Configuration reference
 =======================
 
 The application configuration is located in `app/config/services.yml`, under the `parameters` section.
-If you want to use the default values, you can proceed to the Usage Instructions.
+If you want to use the default values, you can proceed to the [Usage Instructions](/src/AppBundle/Resources/doc/Usage.md).
  
 If not, you can tweak the values below:
 
