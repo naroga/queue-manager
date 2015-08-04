@@ -61,7 +61,7 @@ class StartCommand extends ContainerAwareCommand
         }
 
         if ($verbose) {
-            $output->writeln("<info>Queue manager is starting.</info>");
+            $output->writeln("<info>Queue Manager is starting.</info>");
         }
 
         $filesystem->touch('app/cache/queue.lock');
@@ -71,10 +71,19 @@ class StartCommand extends ContainerAwareCommand
             $app = new Process($command);
             $app->setTimeout(0);
             $app->start();
-            $filesystem->dumpFile('app/cache/queue.lock', $app->getPid());
+            $pid = $app->getPid();
+            $filesystem->dumpFile('app/cache/queue.lock', $pid);
+            if ($verbose) {
+                $output->writeln('<info>Queue Manager started with PID = ' . ($pid + 1) . '.</info>');
+            }
             return;
         } else {
-            $filesystem->dumpFile('app/cache/queue.lock', getmypid());
+            $pid = getmypid();
+            $filesystem->dumpFile('app/cache/queue.lock', $pid);
+        }
+
+        if ($verbose) {
+            $output->writeln('<info>Queue Manager started with PID = ' . $pid . '.</info>');
         }
 
         while (true) {
@@ -87,6 +96,9 @@ class StartCommand extends ContainerAwareCommand
                     return;
                 }
             }
+
+            //TODO: Start the processes.
+
             sleep($interval);
         }
     }
