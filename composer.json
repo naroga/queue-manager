@@ -1,6 +1,8 @@
 {
-    "name": "naroga/queue.manager",
-    "license": "proprietary",
+    "name": "naroga/queue-manager",
+    "description": "A simple PHP-based queue manager, with an interface for registering custom workers",
+    "keywords": ["queue", "worker", "workers", "php", "manager", "daemon"],
+    "license": "MIT",
     "type": "project",
     "autoload": {
         "psr-4": {
