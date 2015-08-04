@@ -42,9 +42,16 @@ class StatusCommand extends ContainerAwareCommand
         }
 
         $output->writeln(
-            'Queue Manager status: ' .
+            'Status: ' .
             ($running ? '<info>RUNNING</info>' : '<error>NOT RUNNING</error>')
         );
+
+        if (!$running) {
+            return;
+        }
+
+        $output->writeln('Process ID: <info>' . file_get_contents('app/cache/queue.lock') . '</info>');
+
 
     }
 }

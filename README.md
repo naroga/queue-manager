@@ -23,6 +23,8 @@ To install this package, use [composer](https://getcomposer.org):
 
 This will install the package with its dependencies.
 
+You should also create a VirtualHost with the root directory set to `/web/`.
+
 Configuration
 -------------
 
