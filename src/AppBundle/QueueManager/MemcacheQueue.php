@@ -2,10 +2,13 @@
 
 namespace AppBundle\QueueManager;
 
+use AppBundle\Event\ManagerFlushedEvent;
+use AppBundle\Event\ManagerRetrievedEvent;
 use AppBundle\Event\ProcessDequeuedEvent;
 use AppBundle\Event\ProcessQueuedEvent;
 use AppBundle\Exception\InvalidProcessException;
-use AppBundle\Process\Process as ProcessData;
+use AppBundle\Process\Process;
+use AppBundle\Process\ProcessData;
 use Lsw\MemcacheBundle\Cache\AntiDogPileMemcache;
 use Symfony\Component\EventDispatcher\Debug\TraceableEventDispatcher;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -16,99 +19,130 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
  */
 class MemcacheQueue implements QueueManagerInterface
 {
-    /**
-     * @var array
-     */
-    protected $queue = [];
 
     /**
-     * @var EventDispatcher
+     * @var TraceableEventDispatcher
      */
     protected $eventDispatcher;
 
     /**
      * @var AntiDogPileMemcache
      */
-    protected $server;
+    protected $memcache;
+
+    /**
+     * @var \SplQueue
+     */
+    protected $queue;
+
+    /**
+     * @var bool
+     */
+    protected $locked = false;
 
     /**
      * Class constructor
      *
-     * @param TraceableEventDispatcher $eventDispatcher The Event Dispatcher.
+     * @param TraceableEventDispatcher $dispatcher
+     * @param AntiDogPileMemcache $memcache
      */
-    public function __construct(TraceableEventDispatcher $eventDispatcher, AntiDogPileMemcache $server)
+    public function __construct(TraceableEventDispatcher $dispatcher, AntiDogPileMemcache $memcache)
     {
-        $this->eventDispatcher = $eventDispatcher;
-        $this->server = $server;
+        $this->eventDispatcher = $dispatcher;
+        $this->memcache = $memcache;
+    }
+
+    /**
+     * Gets the current queue from the Memcache server.
+     *
+     * @param boolean $exclusive If set to true, this will lock all processes from querying the queue.
+     * @return \SplQueue
+     */
+    public function getQueue($exclusive = false)
+    {
+        if ($this->locked) {
+            return $this->queue;
+        }
+
+        //If the 'add' operation fails, it means the lock is already active.
+        if ($this->memcache->add('queue.manager.lock', true)) {
+            $queue = $this->memcache->get('queue.manager');
+            if (!$queue) {
+                $queue = new \SplQueue;
+            }
+            $this->queue = unserialize($queue);
+            $this->locked = true;
+        } else {
+            $interval = $this->memcache->get('queue.process.interval');
+
+            $this->eventDispatcher->dispatch(
+                'queue.manager.retrieved',
+                new ManagerRetrievedEvent(ManagerRetrievedEvent::RETRIEVAL_STATUS_FAILED_LOCKED)
+            );
+
+            //Wait for the lock to be released.
+            while ($this->memcache->get('queue.manager.lock')) {
+                usleep($interval * 1000 * 1000);
+            }
+
+            $this->queue = unserialize($this->memcache->get('queue.manager'));
+            $this->locked = true;
+        }
+
+        $this->eventDispatcher->dispatch(
+            'queue.manager.retrieved',
+            new ManagerRetrievedEvent(ManagerRetrievedEvent::RETRIEVAL_STATUS_SUCCESS)
+        );
+
+        if (!$exclusive) {
+            $this->memcache->delete('queue.manager.lock');
+            $this->locked = false;
+        }
+
+        return $this->queue;
+
     }
 
     /**
      * Adds a Process to the queue.
      *
-     * @param ProcessData $process Process to be added.
+     * @param Process $process Process to be added.
      * @param string $name The process name
-     * @throws InvalidProcessException
      */
-    public function addProcess(ProcessData $process, $name = null)
+    public function addProcess(Process $process, $name = null, $flush = true)
     {
-        if (isset($name)) {
-            if (array_key_exists($name, $this->queue)) {
-                throw new InvalidProcessException('The specified process name (' . $name . ') is already in use.');
-            }
-        } else {
-            $name = substr(str_shuffle(md5(microtime())), 0, 10);
+        /** @var \SplQueue $queue */
+        $queue = $this->getQueue(true);
+        $processData = new ProcessData($process, $name);
+        $queue->enqueue($processData);
+        if ($flush) {
+            $this->flush($queue);
         }
 
-        $this->queue[$name] = $process;
-        $this->eventDispatcher->dispatch('queue.process_queued', new ProcessQueuedEvent($name, $process));
+        $this->eventDispatcher->dispatch(
+            'queue.process_queued',
+            new ProcessQueuedEvent($processData->getName(), $processData->getProcess())
+        );
+
     }
 
     /**
-     * Removes a Process from the queue.
+     * Flushes all queue changes to the server.
      *
-     * @param string|ProcessData $process Either a process ID or a Process object.
+     * @param \SplQueue $queue
      */
-    public function removeProcess($process)
+    public function flush(\SplQueue $queue)
     {
-        if (is_string($process)) {
-            unset($this->queue[$process]);
-            $id = $process;
+        if ($this->locked) {
+            $this->memcache->delete('queue.manager');
+            $this->memcache->set('queue.manager', serialize($queue));
+            $this->locked = false;
+            $this->memcache->delete('queue.manager.lock');
         } else {
-            $id = array_search($process, $this->queue);
-            if ($id) {
-                unset($this->queue[$id]);
-            }
-        }
-        $this->eventDispatcher->dispatch('queue.process_dequeued', new ProcessDequeuedEvent($id));
-    }
-
-    /**
-     * Gets $limit processes from the top of the queue. If $limit = 0, it will fetch all processes.
-     *
-     * @param int $limit Max number of processes to be returned.
-     * @return ProcessData[] The processes.
-     */
-    public function getProcesses($limit = 0)
-    {
-        if ($limit > 0) {
-            return array_slice($this->queue, 0, $limit);
-        } else {
-            return $this->queue;
-        }
-    }
-
-    /**
-     * Finds a process by ID.
-     *
-     * @param string $id The ID to be searched.
-     * @return ProcessData|null The process or null, if not found.
-     */
-    public function findById($id)
-    {
-        if (isset($this->queue[$id])) {
-            return $this->queue[$id];
-        } else {
-            return null;
+            $this->eventDispatcher->dispatch(
+                'queue.manager.flushed',
+                new ManagerFlushedEvent(ManagerFlushedEvent::STATUS_FLUSH_FAILED_NOLOCK)
+            );
         }
     }
 

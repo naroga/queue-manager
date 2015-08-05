@@ -14,29 +14,22 @@ interface QueueManagerInterface
      *
      * @param Process $process Process to be added.
      * @param string $name The process name
+     * @param boolean $flush Auto flush the queue to the server.
      */
-    public function addProcess(Process $process, $name = null);
+    public function addProcess(Process $process, $name = null, $flush = true);
 
     /**
-     * Removes a Process from the queue.
+     * Flushes all queue changes to the server.
      *
-     * @param string|Process $process Either a process ID or a Process object.
+     * @param \SplQueue $queue The queue object
      */
-    public function removeProcess($process);
+    public function flush(\SplQueue $queue);
 
     /**
-     * Gets $limit processes from the top of the queue. If $limit = 0, it will fetch all processes.
+     * Gets the queue from the manager.
      *
-     * @param int $limit Max number of processes to be returned.
-     * @return array The processes.
+     * @param boolean $exclusive If set to true, this will lock all processes from querying the queue.
+     * @return \SplQueue
      */
-    public function getProcesses($limit = 0);
-
-    /**
-     * Finds a process by ID.
-     *
-     * @param string $id The ID to be searched.
-     * @return Process|null The process or null, if not found.
-     */
-    public function findById($id);
+    public function getQueue($exclusive = false);
 }

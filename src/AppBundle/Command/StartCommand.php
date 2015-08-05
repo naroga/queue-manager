@@ -4,7 +4,9 @@ namespace AppBundle\Command;
 
 use AppBundle\Command\Util\ProcessChecker;
 use AppBundle\Event\ProcessDequeuedEvent;
+use AppBundle\Event\ProcessFinishedEvent;
 use AppBundle\Event\ProcessQueuedEvent;
+use AppBundle\QueueManager\QueueManagerInterface;
 use Lsw\MemcacheBundle\Cache\AntiDogPileMemcache;
 use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -12,6 +14,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\PhpExecutableFinder;
 use Symfony\Component\Process\Process;
 
@@ -46,8 +49,10 @@ class StartCommand extends ContainerAwareCommand
     protected function execute(InputInterface $input, OutputInterface $output)
     {
 
+        $appContainer = $this->getContainer();
+
         /** @var AntiDogPileMemcache $server */
-        $server = $this->getContainer()->get('memcache.default');
+        $server = $appContainer->get('memcache.default');
 
         $verbose = $input->getOption('verbose');
 
@@ -107,12 +112,25 @@ class StartCommand extends ContainerAwareCommand
             $output->writeln('<info>Queue Manager started with PID = ' . $pid . '.</info>');
         }
 
-        $appContainer = $this->getContainer();
+
         $interval = $appContainer->getParameter('queue.interval');
 
         $server->delete('queue.sigterm');
+        $server->delete('queue.manager');
+        $server->delete('queue.manager.lock');
+        $server->delete('queue.process.interval');
+
+        $server->add('queue.process.interval', $interval);
+
+        /** @var QueueManagerInterface $queueManager */
+        $queueManager = $appContainer->get('naroga.queue.manager');
+
+        /** @var Process[] $workers */
+        $workers = [];
+        $limitWorkers = $appContainer->getParameter('queue.workers');
 
         while (true) {
+            //Shuts down the server if there is a SIGTERM present in the server for this PID.
             $sigterm = $server->get('queue.sigterm');
             if ($sigterm) {
                 if (getmypid() == $sigterm) {
@@ -121,6 +139,34 @@ class StartCommand extends ContainerAwareCommand
                     $server->delete('queue.sigterm');
                     return;
                 }
+            }
+
+            //Clears the current
+            foreach ($workers as &$worker) {
+                if (!$worker->isRunning()) {
+                    $worker = null;
+                } else {
+                    try {
+                        $worker->checkTimeout();
+                    } catch (ProcessTimedOutException $e) {
+                        $eventDispatcher->dispatch(
+                            'queue.process_failed',
+                            new ProcessFinishedEvent(ProcessFinishedEvent::STATUS_TIMEOUT)
+                        );
+                        $worker = null;
+                    }
+                }
+            }
+
+            $workers = array_filter(
+                $workers,
+                function ($item) {
+                    return $item !== null;
+                }
+            );
+
+            if (count($workers) < $limitWorkers) {
+                //TODO: add new worker.
             }
 
             usleep($interval * 1000 * 1000);
