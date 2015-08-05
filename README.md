@@ -24,8 +24,6 @@ To install this package, use [composer](https://getcomposer.org):
 
 This will install the package with its dependencies.
 
-The option `-s dev` will install the latest commit. This might be unstable.
-
 You should also create a VirtualHost with the root directory set to `/web/`.
 
 Configuration
@@ -40,3 +38,8 @@ Usage
 
 If you want to get started on using this package, 
 you can proceed to the [Usage Instructions](/src/AppBundle/Resources/doc/Usage.md).
+
+License
+-------
+
+Naroga/QueueManager is released under the MIT License. See the bundled LICENSE file for details.

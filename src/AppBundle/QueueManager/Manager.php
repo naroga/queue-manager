@@ -265,13 +265,6 @@ class Manager
         );
 
         $this->eventDispatcher->addListener(
-            'queue.process_dequeued',
-            function (ProcessDequeuedEvent $event) use (&$output) {
-                $output->writeln('Process \'' . $event->getId() . '\' was removed from the queue.');
-            }
-        );
-
-        $this->eventDispatcher->addListener(
             'queue.process_failed',
             function (ProcessFinishedEvent $event) use (&$output) {
 
