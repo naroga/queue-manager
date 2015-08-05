@@ -6,14 +6,6 @@ If you want to use the default values, you can proceed to the [Usage Instruction
  
 If not, you can tweak the values below:
 
-queue.process.timeout
----------------------
-
-Describes the maximum amount of time, in seconds, the manager will wait for the callback return before killing the 
-process. 
-
-**Default: 30**
-
 queue.interval
 --------------
 
@@ -23,4 +15,47 @@ higher the CPU usage.
 
 If set to **0**, the queue manager will respond in realtime, but will eat up your CPU resources. This is not advisable.
 
+**Type: float|int**
+
 **Default: 0.5**
+
+queue.process.discardOnFailure
+------------------------------
+
+Determines if the process should be discarded if it doesn't timeout and returns a failure message.
+
+**Type: boolean**
+
+**Default: true**
+
+
+queue.process.timeout
+---------------------
+
+Describes the maximum amount of time, in seconds, the manager will wait for the callback return before killing the 
+process. 
+
+**Type: int**
+
+**Default: 30**
+
+queue.process.tries
+-------------------
+
+Determines the number of times a process will be dispatched again before being discarded by the manager.
+
+If `queue.process.discardOnFailure` is set to `true`, the manager will only retry the process
+if it times out. If it returns a failure message, it will not be retried.
+
+**Type: int**
+
+**Default: 3**
+
+queue.workers
+-------------
+
+Amount of workers. Increase this value to dispatch more requests asynchronously.
+
+**Type: int**
+
+**Default: 5**

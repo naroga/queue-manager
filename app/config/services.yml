@@ -1,5 +1,23 @@
 parameters:
-    queue.process.timeout: 30 #Default timeout, 30 seconds.
-    queue.interval: 0.5 #Time between process checks. Increase value to save CPU.
+
+    #Time between process checks. Increase value to save CPU.
+    queue.interval: 0.5
+
+    #Discards a process without retrying if it doesn't timeout but return a 'failure' message.
+    queue.process.discardOnFailure: true
+
+    #Default timeout, 30 seconds.
+    queue.process.timeout: 30
+
+    #Amount of times the manager will try to get a successful result before removing it from the queue.
+    #If queue.process.discardOnFailure is set to 'true', the manager will only retry if the process times out.
+    queue.process.tries: 3
+
+    #Amount of runners. Increase to dispatch more requests asynchronously.
+    queue.workers: 5
 
 services:
+
+    naroga.queue.manager:
+        class: AppBundle\QueueManager\MemoryQueue
+        arguments: [@event_dispatcher]

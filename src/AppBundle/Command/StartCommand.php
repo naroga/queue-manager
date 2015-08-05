@@ -3,10 +3,13 @@
 namespace AppBundle\Command;
 
 use AppBundle\Command\Util\ProcessChecker;
+use AppBundle\Event\ProcessDequeuedEvent;
+use AppBundle\Event\ProcessQueuedEvent;
 use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\PhpExecutableFinder;
 use Symfony\Component\Process\Process;
@@ -41,11 +44,28 @@ class StartCommand extends ContainerAwareCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $appContainer = $this->getContainer();
 
         $verbose = $input->getOption('verbose');
-        $timeout = $appContainer->getParameter('queue.process.timeout');
-        $interval = $appContainer->getParameter('queue.interval');
+
+        /** @var EventDispatcher $eventDispatcher */
+        $eventDispatcher = $this->getContainer()->get('event_dispatcher');
+
+        $eventDispatcher->addListener(
+            'queue.process_queued',
+            function (ProcessQueuedEvent $event) use ($verbose, &$output) {
+                $output->writeln('<info>Process \'' . $event->getId() . '\' was added to the queue.');
+                if ($verbose) {
+                    var_dump($event->getProcess());
+                }
+            }
+        );
+
+        $eventDispatcher->addListener(
+            'queue.process_dequeued',
+            function (ProcessDequeuedEvent $event) use (&$output) {
+                $output->writeln('Process \'' . $event->getId() . '\' was removed from the queue.');
+            }
+        );
 
         $phpFinder = new PhpExecutableFinder();
         $phpPath = $phpFinder->find();
@@ -86,9 +106,13 @@ class StartCommand extends ContainerAwareCommand
             $output->writeln('<info>Queue Manager started with PID = ' . $pid . '.</info>');
         }
 
+        $appContainer = $this->getContainer();
+        $interval = $appContainer->getParameter('queue.interval');
+
         while (true) {
             if ($filesystem->exists('app/cache/SIGTERM')) {
                 $pid = file_get_contents('app/cache/SIGTERM');
+
                 if (getmypid() == $pid) {
                     $output->writeln("<info>SIGTERM Received. Exiting queue manager.</info>");
                     $filesystem->remove('app/cache/queue.lock');
@@ -97,9 +121,7 @@ class StartCommand extends ContainerAwareCommand
                 }
             }
 
-            //TODO: Start the processes.
-
-            sleep($interval);
+            usleep($interval * 1000);
         }
     }
 }
