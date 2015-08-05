@@ -28,4 +28,12 @@ class ManagerFlushedEvent extends Event
     {
         $this->status = $status;
     }
+
+    /**
+     * @return int
+     */
+    public function getStatus()
+    {
+        return $this->status;
+    }
 }

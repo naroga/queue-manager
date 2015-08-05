@@ -67,10 +67,12 @@ class MemcacheQueue implements QueueManagerInterface
         //If the 'add' operation fails, it means the lock is already active.
         if ($this->memcache->add('queue.manager.lock', true)) {
             $queue = $this->memcache->get('queue.manager');
-            if (!$queue) {
-                $queue = new \SplQueue;
+            if ($queue) {
+                $this->queue = unserialize($queue);
             }
-            $this->queue = unserialize($queue);
+            if (!$queue) {
+                $this->queue = new \SplQueue;
+            }
             $this->locked = true;
         } else {
             $interval = $this->memcache->get('queue.process.interval');
@@ -88,11 +90,6 @@ class MemcacheQueue implements QueueManagerInterface
             $this->queue = unserialize($this->memcache->get('queue.manager'));
             $this->locked = true;
         }
-
-        $this->eventDispatcher->dispatch(
-            'queue.manager.retrieved',
-            new ManagerRetrievedEvent(ManagerRetrievedEvent::RETRIEVAL_STATUS_SUCCESS)
-        );
 
         if (!$exclusive) {
             $this->memcache->delete('queue.manager.lock');

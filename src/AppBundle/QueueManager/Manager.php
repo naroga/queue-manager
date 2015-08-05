@@ -3,11 +3,15 @@
 namespace AppBundle\QueueManager;
 
 use AppBundle\Command\Util\ProcessChecker;
+use AppBundle\Event\ManagerFlushedEvent;
+use AppBundle\Event\ManagerRetrievedEvent;
 use AppBundle\Event\ProcessFinishedEvent;
+use AppBundle\Event\ProcessQueuedEvent;
 use Lsw\MemcacheBundle\Cache\AntiDogPileMemcache;
-use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\EventDispatcher\Debug\TraceableEventDispatcher;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
+use Symfony\Component\Process\PhpExecutableFinder;
 use Symfony\Component\Process\Process;
 
 /**
@@ -44,9 +48,13 @@ class Manager
      *
      * @param TraceableEventDispatcher $eventDispatcher
      * @param AntiDogPileMemcache $memcache
+     * @param QueueManagerInterface $manager
      */
-    public function __construct(TraceableEventDispatcher $eventDispatcher, AntiDogPileMemcache $memcache, QueueManagerInterface $manager)
-    {
+    public function __construct(
+        TraceableEventDispatcher $eventDispatcher,
+        AntiDogPileMemcache $memcache,
+        QueueManagerInterface $manager
+    ) {
         $this->eventDispatcher = $eventDispatcher;
         $this->memcache = $memcache;
         $this->manager = $manager;
@@ -66,12 +74,12 @@ class Manager
      * Starts the server
      *
      * @param array $options
+     * @return void
      */
     public function start(array $options)
     {
 
         $verbose = isset($options['verbose']) && $options['verbose'];
-        $interval = $options['interval'];
 
         if ($this->checkServer()) {
             $this->output->writeln("<error>Queue Manager is already running.</error>");
@@ -82,12 +90,10 @@ class Manager
             $this->output->writeln("<info>Queue Manager is starting.</info>");
         }
 
-        $this->registerListeners($verbose);
-
         $phpFinder = new PhpExecutableFinder();
         $phpPath = $phpFinder->find();
 
-        if ($this->input->getOption('daemon')) {
+        if ($options['daemon']) {
             $command = $phpPath . ' app/console naroga:queue:start ' . ($verbose ? '-v' : '') . ' &';
             $app = new Process($command);
             $app->setTimeout(0);
@@ -102,6 +108,8 @@ class Manager
             $pid = getmypid();
             $this->memcache->set('queue.lock', $pid);
         }
+
+        $this->registerListeners($verbose);
 
         if ($verbose) {
             $this->output->writeln('<info>Queue Manager started with PID = ' . $pid . '.</info>');
@@ -138,6 +146,8 @@ class Manager
 
             $this->clearIdleWorkers($workers);
 
+            $myQueue = $queueManager->getQueue();
+
             if (count($workers) < $limitWorkers) {
                 //TODO: add new worker.
             }
@@ -165,7 +175,7 @@ class Manager
                 } catch (ProcessTimedOutException $e) {
                     $this->eventDispatcher->dispatch(
                         'queue.process_failed',
-                        new ProcessFinishedEvent(ProcessFinishedEvent::STATUS_TIMEOUT)
+                        new ProcessFinishedEvent($worker->getPid(), ProcessFinishedEvent::STATUS_TIMEOUT)
                     );
                     $worker = null;
                 }
@@ -255,6 +265,74 @@ class Manager
                 $output->writeln('Process \'' . $event->getId() . '\' was removed from the queue.');
             }
         );
+
+        $this->eventDispatcher->addListener(
+            'queue.process_failed',
+            function (ProcessFinishedEvent $event) use (&$output) {
+
+                $status = [
+                    2 => 'TIMEOUT',
+                    3 => 'ERROR IN RESPONSE'
+                ];
+
+                $this->output->writeln(
+                    '<error>The process named \'' . $event->getName() .
+                    '\' was killed with an error.</error>'
+                );
+                $this->output->writeln('<error>Status: ' . $status[$event->getStatus()] . '</error>');
+            }
+        );
+
+        $this->eventDispatcher->addListener(
+            'queue.manager.retrieved',
+            function (ManagerRetrievedEvent $event) use ($verbose, &$output) {
+
+                $errors = [
+                    ManagerRetrievedEvent::RETRIEVAL_STATUS_FAILED =>
+                        'Failed to retrieve the manager. Key not found.'
+                ];
+
+                $warnings = [
+                    ManagerRetrievedEvent::RETRIEVAL_STATUS_FAILED_LOCKED =>
+                        'Attempted to retrieve the manager, but it was locked. Retrying in a few moments.'
+                ];
+
+                if (isset($errors[$event->getStatus()])) {
+                    $this->output->writeln('<error>' . $errors[$event->getStatus()] .'</error>');
+                }
+                if (isset($warnings[$event->getStatus()]) && $verbose) {
+                    $this->output->writeln('<bg=yellow>' . $warnings[$event->getStatus()] .'</bg>');
+                }
+            }
+        );
+
+        $this->eventDispatcher->addListener(
+            'queue.manager.flushed',
+            function (ManagerFlushedEvent $event) use ($verbose, &$output) {
+
+                switch ($event->getStatus()) {
+                    case ManagerFlushedEvent::STATUS_FLUSH_FAILED_NOLOCK:
+                        $output->writeln(
+                            '<error>Could not flush the queue to the queue server. ' .
+                            'Reason: the queue manager is locked.</error>'
+                        );
+                        break;
+                    case ManagerFlushedEvent::STATUS_FLUSH_FAILED:
+                        $output->writeln(
+                            '<error>Could not flush the queue to the queue server. ' .
+                            'Reason: the server is unreachable.'
+                        );
+                        break;
+                    case ManagerRetrievedEvent::RETRIEVAL_STATUS_SUCCESS:
+                        if ($verbose){
+                            $output->writeln('<info>The queue manager has been flushed.</info>');
+                        }
+                        break;
+                }
+
+            }
+        );
+        
     }
 
 }

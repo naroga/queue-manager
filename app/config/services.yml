@@ -1,23 +1,38 @@
 parameters:
 
-    #Time between process checks. Increase value to save CPU.
+    # Time between process checks. Increase value to save CPU.
     queue.interval: 0.5
 
-    #Discards a process without retrying if it doesn't timeout but return a 'failure' message.
+    # Discards a process without retrying if it returns an HTTP 4**, 5**, or even a 2**/3** with a 'failure' message.
     queue.process.discardOnFailure: true
 
-    #Default timeout, 30 seconds.
+    # Default timeout, 30 seconds.
     queue.process.timeout: 30
 
-    #Amount of times the manager will try to get a successful result before removing it from the queue.
-    #If queue.process.discardOnFailure is set to 'true', the manager will only retry if the process times out.
+    # Amount of times the manager will try to get a successful result before removing it from the queue.
+    # If queue.process.discardOnFailure is set to 'true', the manager will only retry if the process times out.
     queue.process.tries: 3
 
-    #Amount of runners. Increase to dispatch more requests asynchronously.
+    # Amount of runners. Increase to dispatch more requests asynchronously.
     queue.workers: 5
 
 services:
 
-    naroga.queue.manager:
+    ##################################################################################################
+    # You can change this service and replace it for a custom persistent accessor (like a database). #
+    # This default accessor uses Memcache and pessimistic locking.                                   #
+    # Your should check the documentation for more information on how to implement your own accessor.#
+    # Do not change this unless you are absolutely sure you know what you're doing.                  #
+    ##################################################################################################
+    naroga.queue.accessor:
         class: AppBundle\QueueManager\MemcacheQueue
         arguments: [@event_dispatcher, @memcache.default]
+
+
+    ##################################################################################################
+    # DO NOT EDIT BELOW THIS LINE                                                                    #
+    ##################################################################################################
+
+    naroga.queue.manager:
+        class: AppBundle\QueueManager\Manager
+        arguments: [@event_dispatcher, @memcache.default, @naroga.queue.accessor]
