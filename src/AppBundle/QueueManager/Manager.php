@@ -7,6 +7,7 @@ use AppBundle\Event\ManagerFlushedEvent;
 use AppBundle\Event\ManagerRetrievedEvent;
 use AppBundle\Event\ProcessFinishedEvent;
 use AppBundle\Event\ProcessQueuedEvent;
+use AppBundle\Process\ProcessData;
 use Lsw\MemcacheBundle\Cache\AntiDogPileMemcache;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\EventDispatcher\Debug\TraceableEventDispatcher;
@@ -116,8 +117,7 @@ class Manager
         }
 
         $this->resetServerConfig($options);
-
-        return $this->processQueue($options);
+        $this->processQueue($options);
 
     }
 
@@ -141,15 +141,19 @@ class Manager
             if ($this->verifySigterm($options)) {
                 $this->output->writeln("<info>SIGTERM Received. Exiting queue manager.</info>");
                 $this->resetServerConfig($options);
-                return;
+                return true;
             }
 
             $this->clearIdleWorkers($workers);
 
-            $myQueue = $queueManager->getQueue();
+            $queue = $queueManager->getQueue();
 
-            if (count($workers) < $limitWorkers) {
-                //TODO: add new worker.
+            while (count($workers) < $options['workers'] && count($queue) > 0) {
+                /** @var ProcessData $newProcess */
+                $newProcess = $queue->dequeue();
+                $workers[$newProcess->getName()] = $newProcess->getProcess();
+                $workers[$newProcess->getName()]->setTimeout($options['timeout']);
+                $workers[$newProcess->getName()]->start();
             }
 
             usleep($options['interval'] * 1000 * 1000);
@@ -173,6 +177,7 @@ class Manager
                 try {
                     $worker->checkTimeout();
                 } catch (ProcessTimedOutException $e) {
+                    (new Process('kill ' . $worker->getPid()))->run();
                     $this->eventDispatcher->dispatch(
                         'queue.process_failed',
                         new ProcessFinishedEvent($worker->getPid(), ProcessFinishedEvent::STATUS_TIMEOUT)
@@ -324,7 +329,7 @@ class Manager
                         );
                         break;
                     case ManagerRetrievedEvent::RETRIEVAL_STATUS_SUCCESS:
-                        if ($verbose){
+                        if ($verbose) {
                             $output->writeln('<info>The queue manager has been flushed.</info>');
                         }
                         break;
@@ -332,7 +337,7 @@ class Manager
 
             }
         );
-        
+
     }
 
 }

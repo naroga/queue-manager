@@ -3,21 +3,11 @@
 namespace AppBundle\Command;
 
 use AppBundle\Command\Util\ProcessChecker;
-use AppBundle\Event\ProcessDequeuedEvent;
-use AppBundle\Event\ProcessFinishedEvent;
-use AppBundle\Event\ProcessQueuedEvent;
 use AppBundle\QueueManager\Manager;
-use AppBundle\QueueManager\QueueManagerInterface;
-use Lsw\MemcacheBundle\Cache\AntiDogPileMemcache;
 use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\EventDispatcher\EventDispatcher;
-use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Component\Process\Exception\ProcessTimedOutException;
-use Symfony\Component\Process\PhpExecutableFinder;
-use Symfony\Component\Process\Process;
 
 /**
  * Class StartCommand
@@ -62,6 +52,5 @@ class StartCommand extends ContainerAwareCommand
         ];
 
         return $manager->start($options);
-
     }
 }

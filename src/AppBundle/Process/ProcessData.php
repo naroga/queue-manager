@@ -1,6 +1,7 @@
 <?php
 
 namespace AppBundle\Process;
+use Symfony\Component\Process\Process;
 
 /**
  * Class ProcessData

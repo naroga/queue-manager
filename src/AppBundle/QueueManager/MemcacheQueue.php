@@ -4,14 +4,12 @@ namespace AppBundle\QueueManager;
 
 use AppBundle\Event\ManagerFlushedEvent;
 use AppBundle\Event\ManagerRetrievedEvent;
-use AppBundle\Event\ProcessDequeuedEvent;
 use AppBundle\Event\ProcessQueuedEvent;
-use AppBundle\Exception\InvalidProcessException;
 use AppBundle\Process\Process;
 use AppBundle\Process\ProcessData;
 use Lsw\MemcacheBundle\Cache\AntiDogPileMemcache;
 use Symfony\Component\EventDispatcher\Debug\TraceableEventDispatcher;
-use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\Process\PhpExecutableFinder;
 
 /**
  * Class MemcacheQueue
@@ -41,6 +39,11 @@ class MemcacheQueue implements QueueManagerInterface
     protected $locked = false;
 
     /**
+     * @var string
+     */
+    protected $phpPath = 'php';
+
+    /**
      * Class constructor
      *
      * @param TraceableEventDispatcher $dispatcher
@@ -50,6 +53,8 @@ class MemcacheQueue implements QueueManagerInterface
     {
         $this->eventDispatcher = $dispatcher;
         $this->memcache = $memcache;
+        $phpFinder = new PhpExecutableFinder();
+        $this->phpPath = $phpFinder->find();
     }
 
     /**
@@ -110,7 +115,16 @@ class MemcacheQueue implements QueueManagerInterface
     {
         /** @var \SplQueue $queue */
         $queue = $this->getQueue(true);
-        $processData = new ProcessData($process, $name);
+
+        $service = new \Symfony\Component\Process\Process(
+            $this->phpPath . ' naroga:queue:dispatch ' .
+            '--url="' . $process->getUrl() . '" ' .
+            '--method="' . $process->getMethod() . '"" ' .
+            '--data="' . http_build_query($process->getData()) . '" ' .
+            '--headers="' . json_encode($process->getData()) . '"'
+        );
+
+        $processData = new ProcessData($service, $name);
         $queue->enqueue($processData);
         if ($flush) {
             $this->flush($queue);
