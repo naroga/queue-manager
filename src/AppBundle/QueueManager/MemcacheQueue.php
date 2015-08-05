@@ -6,14 +6,15 @@ use AppBundle\Event\ProcessDequeuedEvent;
 use AppBundle\Event\ProcessQueuedEvent;
 use AppBundle\Exception\InvalidProcessException;
 use AppBundle\Process\Process as ProcessData;
+use Lsw\MemcacheBundle\Cache\AntiDogPileMemcache;
 use Symfony\Component\EventDispatcher\Debug\TraceableEventDispatcher;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 
 /**
- * Class MemoryQueue
+ * Class MemcacheQueue
  * @package AppBundle\QueueManager
  */
-class MemoryQueue implements QueueManagerInterface
+class MemcacheQueue implements QueueManagerInterface
 {
     /**
      * @var array
@@ -26,13 +27,19 @@ class MemoryQueue implements QueueManagerInterface
     protected $eventDispatcher;
 
     /**
+     * @var AntiDogPileMemcache
+     */
+    protected $server;
+
+    /**
      * Class constructor
      *
      * @param TraceableEventDispatcher $eventDispatcher The Event Dispatcher.
      */
-    public function __construct(TraceableEventDispatcher $eventDispatcher)
+    public function __construct(TraceableEventDispatcher $eventDispatcher, AntiDogPileMemcache $server)
     {
         $this->eventDispatcher = $eventDispatcher;
+        $this->server = $server;
     }
 
     /**

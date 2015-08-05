@@ -32,6 +32,7 @@ class StatusCommand extends ContainerAwareCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        /** @var AntiDogPileMemcache $server */
         $server = $this->getContainer()->get('memcache.default');
 
         $running = false;

@@ -3,6 +3,7 @@
 namespace AppBundle\Command;
 
 use AppBundle\Command\Util\ProcessChecker;
+use Lsw\MemcacheBundle\Cache\AntiDogPileMemcache;
 use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputInterface;
@@ -38,6 +39,7 @@ class StopCommand extends ContainerAwareCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        /** @var AntiDogPileMemcache $server */
         $server = $this->getContainer()->get('memcache.default');
 
         if (!$server->get('queue.lock')) {
@@ -74,7 +76,11 @@ class StopCommand extends ContainerAwareCommand
 
         $interval = $this->getContainer()->getParameter('queue.interval');
 
-        $server->set('queue.sigterm', $pid);
+        if ($server->get('queue.sigterm')) {
+            $server->replace('queue.sigterm', $pid);
+        } else {
+            $server->set('queue.sigterm', $server->get('queue.lock'));
+        }
         $output->writeln(
             '<error>SIGTERM</error> successfully sent. ' .
             'The manager might still be running, but will shutdown after <info>' . $interval .

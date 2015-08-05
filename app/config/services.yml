@@ -19,5 +19,5 @@ parameters:
 services:
 
     naroga.queue.manager:
-        class: AppBundle\QueueManager\MemoryQueue
-        arguments: [@event_dispatcher]
+        class: AppBundle\QueueManager\MemcacheQueue
+        arguments: [@event_dispatcher, @memcache.default]

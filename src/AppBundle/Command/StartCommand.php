@@ -5,6 +5,7 @@ namespace AppBundle\Command;
 use AppBundle\Command\Util\ProcessChecker;
 use AppBundle\Event\ProcessDequeuedEvent;
 use AppBundle\Event\ProcessQueuedEvent;
+use Lsw\MemcacheBundle\Cache\AntiDogPileMemcache;
 use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -45,6 +46,7 @@ class StartCommand extends ContainerAwareCommand
     protected function execute(InputInterface $input, OutputInterface $output)
     {
 
+        /** @var AntiDogPileMemcache $server */
         $server = $this->getContainer()->get('memcache.default');
 
         $verbose = $input->getOption('verbose');
@@ -107,12 +109,13 @@ class StartCommand extends ContainerAwareCommand
 
         $appContainer = $this->getContainer();
         $interval = $appContainer->getParameter('queue.interval');
+        
+        $server->delete('queue.sigterm');
 
         while (true) {
-            if ($server->get('queue.sigterm')) {
-                $pid = $server->get('queue.sigterm');
-
-                if (getmypid() == $pid) {
+            $sigterm = $server->get('queue.sigterm');
+            if ($sigterm) {
+                if (getmypid() == $sigterm) {
                     $output->writeln("<info>SIGTERM Received. Exiting queue manager.</info>");
                     $server->delete('queue.lock');
                     $server->delete('queue.sigterm');
@@ -120,7 +123,7 @@ class StartCommand extends ContainerAwareCommand
                 }
             }
 
-            usleep($interval * 1000);
+            usleep($interval * 1000 * 1000);
         }
     }
 }
