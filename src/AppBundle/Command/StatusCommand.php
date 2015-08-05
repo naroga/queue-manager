@@ -32,10 +32,11 @@ class StatusCommand extends ContainerAwareCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $filesystem = new Filesystem();
+        $server = $this->getContainer()->get('memcache.default');
+
         $running = false;
-        if ($filesystem->exists('app/cache/queue.lock')) {
-            $pid = file_get_contents('app/cache/queue.lock');
+        if ($server->get('queue.lock')) {
+            $pid = $server->get('queue.lock');
             if ($this->isQueueRunning($pid)) {
                 $running = true;
             }
@@ -50,7 +51,7 @@ class StatusCommand extends ContainerAwareCommand
             return;
         }
 
-        $output->writeln('Process ID: <info>' . file_get_contents('app/cache/queue.lock') . '</info>');
+        $output->writeln('Process ID: <info>' . $server->get('queue.lock') . '</info>');
 
 
     }

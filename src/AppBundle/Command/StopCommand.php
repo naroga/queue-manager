@@ -38,9 +38,9 @@ class StopCommand extends ContainerAwareCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $filesystem = new Filesystem();
+        $server = $this->getContainer()->get('memcache.default');
 
-        if (!$filesystem->exists('app/cache/queue.lock')) {
+        if (!$server->get('queue.lock')) {
             $output->writeln('<error>Error: unable to find a queue.lock file.</error>');
             $output->writeln('This probably means the queue manager is not running.');
             $output->writeln(
@@ -56,7 +56,7 @@ class StopCommand extends ContainerAwareCommand
             return;
         }
 
-        $pid = file_get_contents('app/cache/queue.lock');
+        $pid = $server->get('queue.lock');
         if (!$this->isQueueRunning($pid)) {
             $output->writeln('<error>The queue manager is not running.</error>');
             $output->writeln(
@@ -67,13 +67,14 @@ class StopCommand extends ContainerAwareCommand
             $helper = $this->getHelper('question');
             $question = new ConfirmationQuestion('Delete <info>queue.lock</info>? [Y/n] ');
             if ($helper->ask($input, $output, $question)) {
-                $filesystem->remove('app/cache/queue.lock');
+                $server->delete('queue.lock');
             }
+            return;
         }
 
         $interval = $this->getContainer()->getParameter('queue.interval');
 
-        $filesystem->dumpFile('app/cache/SIGTERM', $pid);
+        $server->set('queue.sigterm', $pid);
         $output->writeln(
             '<error>SIGTERM</error> successfully sent. ' .
             'The manager might still be running, but will shutdown after <info>' . $interval .

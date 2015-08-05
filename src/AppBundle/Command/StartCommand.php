@@ -45,6 +45,8 @@ class StartCommand extends ContainerAwareCommand
     protected function execute(InputInterface $input, OutputInterface $output)
     {
 
+        $server = $this->getContainer()->get('memcache.default');
+
         $verbose = $input->getOption('verbose');
 
         /** @var EventDispatcher $eventDispatcher */
@@ -70,10 +72,9 @@ class StartCommand extends ContainerAwareCommand
         $phpFinder = new PhpExecutableFinder();
         $phpPath = $phpFinder->find();
 
-        $filesystem = new Filesystem();
-
-        if ($filesystem->exists('app/cache/queue.lock')) {
-            $pid = file_get_contents('app/cache/queue.lock');
+        $lock = $server->get('queue.lock');
+        if ($lock) {
+            $pid = $lock;
             if ($this->isQueueRunning($pid)) {
                 $output->writeln("<error>Queue Manager is already running.</error>");
                 return;
@@ -84,22 +85,20 @@ class StartCommand extends ContainerAwareCommand
             $output->writeln("<info>Queue Manager is starting.</info>");
         }
 
-        $filesystem->touch('app/cache/queue.lock');
-
         if ($input->getOption('daemon')) {
             $command = $phpPath . ' app/console naroga:queue:start ' . ($verbose ? '-v' : '') . ' &';
             $app = new Process($command);
             $app->setTimeout(0);
             $app->start();
             $pid = $app->getPid();
-            $filesystem->dumpFile('app/cache/queue.lock', $pid);
+            $server->set('queue.lock', $pid);
             if ($verbose) {
                 $output->writeln('<info>Queue Manager started with PID = ' . ($pid + 1) . '.</info>');
             }
             return;
         } else {
             $pid = getmypid();
-            $filesystem->dumpFile('app/cache/queue.lock', $pid);
+            $server->set('queue.lock', $pid);
         }
 
         if ($verbose) {
@@ -110,13 +109,13 @@ class StartCommand extends ContainerAwareCommand
         $interval = $appContainer->getParameter('queue.interval');
 
         while (true) {
-            if ($filesystem->exists('app/cache/SIGTERM')) {
-                $pid = file_get_contents('app/cache/SIGTERM');
+            if ($server->get('queue.sigterm')) {
+                $pid = $server->get('queue.sigterm');
 
                 if (getmypid() == $pid) {
                     $output->writeln("<info>SIGTERM Received. Exiting queue manager.</info>");
-                    $filesystem->remove('app/cache/queue.lock');
-                    $filesystem->remove('app/cache/SIGTERM');
+                    $server->delete('queue.lock');
+                    $server->delete('queue.sigterm');
                     return;
                 }
             }
