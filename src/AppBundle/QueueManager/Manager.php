@@ -134,11 +134,10 @@ class Manager
 
         /** @var Process[] $workers */
         $workers = [];
-        $limitWorkers = $options['workers'];
 
         while (true) {
             //Shuts down the server if there is a SIGTERM present in the server for this PID.
-            if ($this->verifySigterm($options)) {
+            if ($this->checkSigterm($options)) {
                 $this->output->writeln("<info>SIGTERM Received. Exiting queue manager.</info>");
                 $this->resetServerConfig($options);
                 return true;
@@ -201,7 +200,7 @@ class Manager
      * @param array $options
      * @return bool
      */
-    protected function verifySigterm(array $options)
+    protected function checkSigterm(array $options)
     {
         //
         $sigterm = $this->memcache->get('queue.sigterm');
@@ -230,6 +229,7 @@ class Manager
     /**
      * Checks if the Queue Manager is already running in a different process.
      *
+     * @TODO: This is not using the ->add() atomic operation, so it will fail the concurrency checks. Fix this.
      * @return bool If the manager is running in another process.
      */
     public function checkServer()
