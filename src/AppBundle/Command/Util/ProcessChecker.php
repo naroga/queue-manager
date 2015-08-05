@@ -1,6 +1,7 @@
 <?php
 
 namespace AppBundle\Command\Util;
+
 use Symfony\Component\Process\Process;
 
 /**
@@ -12,7 +13,7 @@ trait ProcessChecker
     /**
      * Checks is the Queue Manager is running, by a PID.
      *
-     * @param $pid Process ID. Usually read from queue.lock.
+     * @param string $pid Process ID. Usually read from queue.lock.
      * @return bool If the queue manager is running.
      */
     protected function isQueueRunning($pid)

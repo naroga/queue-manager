@@ -3,6 +3,7 @@
 namespace AppBundle\Command;
 
 use AppBundle\Command\Util\ProcessChecker;
+use Lsw\MemcacheBundle\Cache\AntiDogPileMemcache;
 use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;

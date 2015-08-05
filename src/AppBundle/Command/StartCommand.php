@@ -109,7 +109,7 @@ class StartCommand extends ContainerAwareCommand
 
         $appContainer = $this->getContainer();
         $interval = $appContainer->getParameter('queue.interval');
-        
+
         $server->delete('queue.sigterm');
 
         while (true) {
