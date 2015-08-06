@@ -44,9 +44,6 @@ class ProcessData
      */
     public function setName($name)
     {
-        if (!$name) {
-            $name = substr(str_shuffle(md5(microtime())), 0, 10);
-        }
         $this->name = $name;
     }
 

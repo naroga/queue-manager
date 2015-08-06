@@ -116,12 +116,15 @@ class MemcacheQueue implements QueueManagerInterface
         /** @var \SplQueue $queue */
         $queue = $this->getQueue(true);
 
+        if (!$name) {
+            $name = substr(str_shuffle(md5(microtime())), 0, 10);
+        }
+
+        $this->memcache->add('queue.process.processlist.' . $name, $process);
+
         $service = new \Symfony\Component\Process\Process(
             $this->phpPath . ' naroga:queue:dispatch ' .
-            '"' . $process->getUrl() . '" ' .
-            '"' . $process->getMethod() . '"" ' .
-            '"' . http_build_query($process->getData()) . '" ' .
-            '"' . addslashes(json_encode($process->getData())) . '"'
+            $name
         );
 
         $processData = new ProcessData($service, $name);

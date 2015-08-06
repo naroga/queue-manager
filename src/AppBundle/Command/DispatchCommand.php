@@ -17,27 +17,9 @@ class DispatchCommand extends ContainerAwareCommand
             ->setName('naroga:queue:dispatch')
             ->setDescription('Dispatches a HTTP request.')
             ->addArgument(
-                'url',
+                'name',
                 InputArgument::REQUIRED,
-                'The URL'
-            )
-            ->addArgument(
-                'method',
-                InputArgument::OPTIONAL,
-                'The HTTP verb (POST|PUT|OPTION|DELETE|HEAD|GET)',
-                'GET'
-            )
-            ->addArgument(
-                'data',
-                InputArgument::OPTIONAL,
-                'Payload',
-                []
-            )
-            ->addArgument(
-                'headers',
-                InputArgument::OPTIONAL,
-                'Additional http headers.',
-                []
+                'The process identifier (name).'
             );
     }
 
