@@ -7,6 +7,7 @@ use AppBundle\Event\ManagerFlushedEvent;
 use AppBundle\Event\ManagerRetrievedEvent;
 use AppBundle\Event\ProcessFinishedEvent;
 use AppBundle\Event\ProcessQueuedEvent;
+use AppBundle\Event\ProcessStartedEvent;
 use AppBundle\Process\ProcessData;
 use Lsw\MemcacheBundle\Cache\AntiDogPileMemcache;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -133,9 +134,11 @@ class Manager
         /** @var Process[] $workers */
         $workers = [];
 
-        //TODO: add the option to wait for the already-dispatched process to end.
+        $queueCount = 0;
+
         while (true) {
             //Shuts down the server if there is a SIGTERM present in the server for this PID.
+            //TODO: add the option to wait for the already-dispatched process to end.
             if ($this->checkSigterm($options)) {
                 $this->output->writeln("<info>SIGTERM Received. Exiting queue manager.</info>");
                 $this->resetServerConfig($options);
@@ -144,16 +147,42 @@ class Manager
 
             $this->clearIdleWorkers($workers);
 
-            $queue = $queueManager->getQueue();
+            $queue = $queueManager->getQueue(true);
 
+            //Checks if any new processes have been added to the queue since the last iteration.
+            if (count($queue) > $queueCount) {
+                for ($i = $queueCount; $i < count($queue); $i++) {
+                    $this->eventDispatcher->dispatch(
+                        'queue.process_queued',
+                        new ProcessQueuedEvent(
+                            $queue->offsetGet($i)->getName()
+                        )
+                    );
+                }
+            }
+
+            //Adds processes from the top of the queue until all workers are busy or the queue is empty.
             while (count($workers) < $options['workers'] && count($queue) > 0) {
                 /** @var ProcessData $newProcess */
                 $newProcess = $queue->dequeue();
                 $workers[$newProcess->getName()] = $newProcess->getProcess();
                 $workers[$newProcess->getName()]->setTimeout($options['timeout']);
                 $workers[$newProcess->getName()]->start();
+                $this->eventDispatcher->dispatch(
+                    'queue.process_started',
+                    new ProcessStartedEvent(
+                        $newProcess->getName(),
+                        $newProcess->getProcess()
+                    )
+                );
+                if ($options['verbose']) {
+                    $this->output->writeln(count($queue) . ' processes still queued.');
+                }
             }
+            $queueManager->flush($queue);
+            $queueCount = count($queue);
 
+            //Waits a little bit until the next iteration. Gives the CPU time to breathe.
             usleep($options['interval'] * 1000 * 1000);
         }
 
@@ -168,17 +197,20 @@ class Manager
     public function clearIdleWorkers(array &$workers)
     {
         //Clears the current
-        foreach ($workers as &$worker) {
+        foreach ($workers as $name => &$worker) {
             if (!$worker->isRunning()) {
+                $this->eventDispatcher->dispatch(
+                    'queue.process_ended',
+                    new ProcessFinishedEvent($name, $worker->getOutput(), ProcessFinishedEvent::STATUS_TIMEOUT)
+                );
                 $worker = null;
             } else {
                 try {
                     $worker->checkTimeout();
                 } catch (ProcessTimedOutException $e) {
-                    (new Process('kill ' . $worker->getPid()))->run();
                     $this->eventDispatcher->dispatch(
                         'queue.process_failed',
-                        new ProcessFinishedEvent($worker->getPid(), ProcessFinishedEvent::STATUS_TIMEOUT)
+                        new ProcessFinishedEvent($name, $worker->getOutput(), ProcessFinishedEvent::STATUS_TIMEOUT)
                     );
                     $worker = null;
                 }
@@ -260,10 +292,7 @@ class Manager
         $this->eventDispatcher->addListener(
             'queue.process_queued',
             function (ProcessQueuedEvent $event) use ($verbose, &$output) {
-                $output->writeln('<info>Process \'' . $event->getId() . '\' was added to the queue.');
-                if ($verbose) {
-                    var_dump($event->getProcess());
-                }
+                $output->writeln('<info>Process \'' . $event->getId() . '\' was added to the queue.</info>');
             }
         );
 
@@ -302,7 +331,7 @@ class Manager
                     $this->output->writeln('<error>' . $errors[$event->getStatus()] .'</error>');
                 }
                 if (isset($warnings[$event->getStatus()]) && $verbose) {
-                    $this->output->writeln('<bg=yellow>' . $warnings[$event->getStatus()] .'</bg>');
+                    $this->output->writeln('<bg=yellow>' . $warnings[$event->getStatus()] .'</>');
                 }
             }
         );
@@ -331,6 +360,23 @@ class Manager
                         break;
                 }
 
+            }
+        );
+
+        $this->eventDispatcher->addListener(
+            'queue.process_ended',
+            function (ProcessFinishedEvent $event) use ($verbose, &$output) {
+                $output->writeln('<info>Process \'' . $event->getName() . '\' has finished.</info>');
+                if ($verbose) {
+                    $output->writeln('Output: ' . $event->getOutput());
+                }
+            }
+        );
+
+        $this->eventDispatcher->addListener(
+            'queue.process_started',
+            function (ProcessStartedEvent $event) use ($verbose, &$output) {
+                $output->writeln('<info>Process \'' . $event->getName() . '\' has just been dispatched.</info>');
             }
         );
 

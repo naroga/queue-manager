@@ -123,7 +123,7 @@ class MemcacheQueue implements QueueManagerInterface
         $this->memcache->add('queue.process.processlist.' . $name, $process);
 
         $service = new \Symfony\Component\Process\Process(
-            $this->phpPath . ' naroga:queue:dispatch ' .
+            $this->phpPath . ' app/console naroga:queue:dispatch ' .
             $name
         );
 
@@ -135,7 +135,7 @@ class MemcacheQueue implements QueueManagerInterface
 
         $this->eventDispatcher->dispatch(
             'queue.process_queued',
-            new ProcessQueuedEvent($processData->getName(), $processData->getProcess())
+            new ProcessQueuedEvent($processData->getName(), $process)
         );
 
     }

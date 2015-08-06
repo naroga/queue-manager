@@ -1,7 +1,8 @@
 <?php
 
 namespace AppBundle\Process;
-use Symfony\Component\Process\Process;
+
+use Symfony\Component\Process\Process as SymfonyProcess;
 
 /**
  * Class ProcessData
@@ -22,10 +23,10 @@ class ProcessData
     /**
      * Class constructor
      *
-     * @param Process $process
+     * @param SymfonyProcess $process
      * @param null $name
      */
-    public function __construct(Process $process, $name = null)
+    public function __construct(SymfonyProcess $process, $name = null)
     {
         $this->setName($name);
         $this->setProcess($process);
@@ -48,7 +49,7 @@ class ProcessData
     }
 
     /**
-     * @return Process
+     * @return SymfonyProcess
      */
     public function getProcess()
     {
@@ -56,7 +57,7 @@ class ProcessData
     }
 
     /**
-     * @param Process $process
+     * @param SymfonyProcess $process
      */
     public function setProcess($process)
     {

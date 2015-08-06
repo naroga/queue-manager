@@ -24,16 +24,20 @@ class ProcessFinishedEvent extends Event
      */
     protected $name;
 
+    /** @var string */
+    protected $output;
+
     /**
      * Class constructor
      *
      * @param int $status
      * @param string $name
      */
-    public function __construct($name, $status)
+    public function __construct($name, $output, $status)
     {
         $this->name = $name;
         $this->status = $status;
+        $this->output = $output;
     }
 
     /**
@@ -52,5 +56,11 @@ class ProcessFinishedEvent extends Event
         return $this->name;
     }
 
-
+    /**
+     * @return string
+     */
+    public function getOutput()
+    {
+        return $this->output;
+    }
 }

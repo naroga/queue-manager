@@ -5,12 +5,17 @@ namespace AppBundle\Command;
 use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\Output;
 use Symfony\Component\Console\Output\OutputInterface;
 
+/**
+ * Class DispatchCommand
+ * @package AppBundle\Command
+ */
 class DispatchCommand extends ContainerAwareCommand
 {
+    /**
+     * @inheritDoc
+     */
     protected function configure()
     {
         $this
@@ -23,8 +28,15 @@ class DispatchCommand extends ContainerAwareCommand
             );
     }
 
+    /**
+     * @inheritDoc
+     */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        sleep(rand(1, 45));
+        sleep(rand(1, 3));
+        if (rand(1, 20) == 20) {
+            sleep(50);
+        }
+
     }
 }

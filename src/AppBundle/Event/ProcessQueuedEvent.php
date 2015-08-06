@@ -16,21 +16,15 @@ class ProcessQueuedEvent extends Event
      */
     protected $id;
 
-    /**
-     * @var Process
-     */
-    protected $process;
 
     /**
      * Class constructor
      *
      * @param string $id The process ID
-     * @param Process $process The Process
      */
-    public function __construct($id, Process $process)
+    public function __construct($id)
     {
         $this->id = $id;
-        $this->process = $process;
     }
 
     /**
@@ -39,13 +33,5 @@ class ProcessQueuedEvent extends Event
     public function getId()
     {
         return $this->id;
-    }
-
-    /**
-     * @return Process
-     */
-    public function getProcess()
-    {
-        return $this->process;
     }
 }
