@@ -145,7 +145,14 @@ class Manager
                 return true;
             }
 
-            $this->clearIdleWorkers($workers);
+            $clearedWorkers = $this->clearIdleWorkers($workers);
+
+            if ($clearedWorkers > 0 && $options['verbose']) {
+                $this->output->writeln(
+                    'Cleared <info>' . $clearedWorkers . '</info> workers. <info>' .
+                    count($workers) . '</info> still working.'
+                );
+            }
 
             $queue = $queueManager->getQueue(true);
 
@@ -168,6 +175,7 @@ class Manager
                 $workers[$newProcess->getName()] = $newProcess->getProcess();
                 $workers[$newProcess->getName()]->setTimeout($options['timeout']);
                 $workers[$newProcess->getName()]->start();
+
                 $this->eventDispatcher->dispatch(
                     'queue.process_started',
                     new ProcessStartedEvent(
@@ -175,9 +183,13 @@ class Manager
                         $newProcess->getProcess()
                     )
                 );
+
                 if ($options['verbose']) {
-                    $this->output->writeln(count($queue) . ' processes still queued.');
+                    if (count($queue) > 0) {
+                        $this->output->writeln(count($queue) . ' processes still queued.');
+                    }
                 }
+
             }
             $queueManager->flush($queue);
             $queueCount = count($queue);
@@ -193,9 +205,11 @@ class Manager
      * Removes Idle workers (finished and timed out).
      *
      * @param Process[] $workers
+     * @return int Number of cleared workers.
      */
     public function clearIdleWorkers(array &$workers)
     {
+        $cleared = 0;
         //Clears the current
         foreach ($workers as $name => &$worker) {
             if (!$worker->isRunning()) {
@@ -204,6 +218,7 @@ class Manager
                     new ProcessFinishedEvent($name, $worker->getOutput(), ProcessFinishedEvent::STATUS_TIMEOUT)
                 );
                 $worker = null;
+                $cleared++;
             } else {
                 try {
                     $worker->checkTimeout();
@@ -213,6 +228,7 @@ class Manager
                         new ProcessFinishedEvent($name, $worker->getOutput(), ProcessFinishedEvent::STATUS_TIMEOUT)
                     );
                     $worker = null;
+                    $cleared++;
                 }
             }
         }
@@ -223,6 +239,8 @@ class Manager
                 return $item !== null;
             }
         );
+
+        return $cleared;
     }
 
     /**
@@ -306,10 +324,11 @@ class Manager
                 ];
 
                 $this->output->writeln(
-                    '<error>The process named \'' . $event->getName() .
+                    '<error>Process \'' . $event->getName() .
                     '\' was killed with an error.</error>'
                 );
                 $this->output->writeln('<error>Status: ' . $status[$event->getStatus()] . '</error>');
+                $this->memcache->delete('queue.process.processlist.' . $event->getName());
             }
         );
 
@@ -367,9 +386,10 @@ class Manager
             'queue.process_ended',
             function (ProcessFinishedEvent $event) use ($verbose, &$output) {
                 $output->writeln('<info>Process \'' . $event->getName() . '\' has finished.</info>');
-                if ($verbose) {
+                if ($verbose && !empty($event->getOutput())) {
                     $output->writeln('Output: ' . $event->getOutput());
                 }
+                $this->memcache->delete('queue.process.processlist.' . $event->getName());
             }
         );
 

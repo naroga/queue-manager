@@ -14,7 +14,7 @@ parameters:
     queue.process.tries: 3
 
     # Amount of runners. Increase to dispatch more requests asynchronously.
-    queue.workers: 20
+    queue.workers: 5
 
 services:
 
