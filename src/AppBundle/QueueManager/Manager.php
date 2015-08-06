@@ -100,19 +100,17 @@ class Manager
             $app->setTimeout(0);
             $app->start();
             $pid = $app->getPid();
-            $this->memcache->set('queue.lock', $pid);
+            $this->memcache->replace('queue.lock', $pid);
             if ($verbose) {
                 $this->output->writeln('<info>Queue Manager started with PID = ' . ($pid + 1) . '.</info>');
             }
             return;
-        } else {
-            $pid = getmypid();
-            $this->memcache->set('queue.lock', $pid);
         }
 
         $this->registerListeners($verbose);
 
         if ($verbose) {
+            $pid = $this->memcache->get('queue.lock');
             $this->output->writeln('<info>Queue Manager started with PID = ' . $pid . '.</info>');
         }
 
@@ -135,6 +133,7 @@ class Manager
         /** @var Process[] $workers */
         $workers = [];
 
+        //TODO: add the option to wait for the already-dispatched process to end.
         while (true) {
             //Shuts down the server if there is a SIGTERM present in the server for this PID.
             if ($this->checkSigterm($options)) {
@@ -234,13 +233,17 @@ class Manager
      */
     public function checkServer()
     {
-        $lock = $this->memcache->get('queue.lock');
-        if ($lock) {
-            $pid = $lock;
+
+        if (!$this->memcache->add('queue.lock', getmypid())) {
+            $pid = $this->memcache->get('queue.lock');
             if ($this->isQueueRunning($pid)) {
                 return true;
+            } else {
+                $this->memcache->delete('queue.lock');
+                return $this->checkServer();
             }
         }
+
         return false;
     }
 
@@ -332,5 +335,4 @@ class Manager
         );
 
     }
-
 }
