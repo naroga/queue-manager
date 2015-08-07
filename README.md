@@ -1,6 +1,8 @@
 Queue Manager
 =============
 
+**This project has been deprecated in favor of [naroga/foreman](https://github.com/naroga/foreman).**
+
 Requirements
 ------------
 
